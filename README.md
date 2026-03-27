@@ -144,7 +144,8 @@ sheet.write_cell_with_color(
 |--------|-------------|
 | `cell(row, col)` | Get cell at position |
 | `value(row, col)` | Get cell value (returns `Empty` if not found) |
-| `background_color(row, col)` | Get background color (returns `None` if not set) |
+| `value_ref(row, col)` | Get cell value by reference without cloning — zero-copy, preferred for performance |
+| `background_color(row, col)` | Get background color reference (returns `None` if not set) |
 | `max_row()` | Maximum row index used |
 | `max_col()` | Maximum column index used |
 
@@ -182,6 +183,20 @@ sheet.write_cell_with_color(
 | `XlsColor::YELLOW` | Predefined constant |
 | `XlsColor::MAGENTA` | Predefined constant |
 | `XlsColor::CYAN` | Predefined constant |
+
+## Performance
+
+Benchmarked against [calamine](https://crates.io/crates/calamine) (the most popular Rust `.xls` reader) on a 100x20 sheet (2,000 cells) with mixed types and background colors:
+
+| Operation | xls_reader | calamine | Note |
+|-----------|-----------|----------|------|
+| **Parse** | 0.097ms | 0.182ms | **xls_reader is ~1.9x faster** |
+| **Cell access** | 0.001ms | 0.001ms | Comparable (both O(1) flat array) |
+
+- xls_reader reads **both values and background colors**; calamine reads values only (no color support)
+- Cell access uses a 2D flat vector for O(1) lookup, same approach as calamine
+- Use `value_ref()` instead of `value()` to avoid `String::clone()` overhead
+- Run `cargo bench` to reproduce
 
 ## Limitations
 

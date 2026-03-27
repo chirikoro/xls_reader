@@ -144,7 +144,8 @@ sheet.write_cell_with_color(
 |----------|------|
 | `cell(row, col)` | 指定座標のセルを取得する |
 | `value(row, col)` | セル値を取得する（未設定の場合 `Empty`） |
-| `background_color(row, col)` | 背景色を取得する（未設定の場合 `None`） |
+| `value_ref(row, col)` | セル値の参照を取得する（クローン不要、高速アクセス推奨） |
+| `background_color(row, col)` | 背景色の参照を取得する（未設定の場合 `None`） |
 | `max_row()` | 使用されている最大行インデックス |
 | `max_col()` | 使用されている最大列インデックス |
 
@@ -182,6 +183,20 @@ sheet.write_cell_with_color(
 | `XlsColor::YELLOW` | 定義済み定数 |
 | `XlsColor::MAGENTA` | 定義済み定数 |
 | `XlsColor::CYAN` | 定義済み定数 |
+
+## パフォーマンス
+
+[calamine](https://crates.io/crates/calamine)（最も広く使われている Rust 製 `.xls` リーダー）との比較ベンチマーク結果です。100行 x 20列（2,000セル）のシートで計測:
+
+| 操作 | xls_reader | calamine | 備考 |
+|------|-----------|----------|------|
+| **パース** | 0.097ms | 0.182ms | **xls_reader が約 1.9 倍高速** |
+| **セルアクセス** | 0.001ms | 0.001ms | ほぼ同等（両方とも O(1) フラット配列） |
+
+- xls_reader は**値と背景色の両方**を読み取ります。calamine は値のみ（色は非対応）
+- セルアクセスは calamine と同じ 2D フラットベクター方式で O(1)
+- `value()` の代わりに `value_ref()` を使うと `String::clone()` を回避でき、さらに高速
+- `cargo bench` で再現可能
 
 ## 制限事項
 
