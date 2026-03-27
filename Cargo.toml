@@ -10,3 +10,8 @@ encoding_rs = "0.8"
 thiserror = "2"
 
 [dev-dependencies]
+calamine = "0.26"
+
+[[bench]]
+name = "read_benchmark"
+harness = false

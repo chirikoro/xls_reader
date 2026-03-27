@@ -2,7 +2,6 @@ use xls_reader::{CellValue, XlsColor, XlsWriter, XlsReader};
 
 #[test]
 fn test_write_and_read_roundtrip() {
-    // Write
     let mut writer = XlsWriter::new();
     {
         let mut sheet = writer.add_sheet("TestSheet");
@@ -13,8 +12,6 @@ fn test_write_and_read_roundtrip() {
     }
 
     let bytes = writer.to_bytes().expect("Failed to write xls");
-
-    // Read
     let reader = XlsReader::from_bytes(&bytes).expect("Failed to read xls");
 
     assert_eq!(reader.sheet_count(), 1);
@@ -43,26 +40,14 @@ fn test_write_and_read_with_colors() {
 
     let sheet = reader.sheet_by_name("Colors").unwrap();
 
-    // Check values
     assert_eq!(sheet.value(0, 0), CellValue::String("Red BG".to_string()));
     assert_eq!(sheet.value(0, 1), CellValue::Number(100.0));
     assert_eq!(sheet.value(1, 1), CellValue::String("No Color".to_string()));
 
-    // Check colors
-    let red_bg = sheet.background_color(0, 0);
-    assert!(red_bg.is_some(), "Expected red background color");
-    assert_eq!(red_bg.unwrap(), XlsColor::RED);
-
-    let yellow_bg = sheet.background_color(0, 1);
-    assert!(yellow_bg.is_some(), "Expected yellow background color");
-    assert_eq!(yellow_bg.unwrap(), XlsColor::YELLOW);
-
-    let green_bg = sheet.background_color(1, 0);
-    assert!(green_bg.is_some(), "Expected green background color for empty cell");
-
-    // No-color cell
-    let no_bg = sheet.background_color(1, 1);
-    assert!(no_bg.is_none(), "Expected no background color");
+    assert_eq!(sheet.background_color(0, 0), Some(&XlsColor::RED));
+    assert_eq!(sheet.background_color(0, 1), Some(&XlsColor::YELLOW));
+    assert!(sheet.background_color(1, 0).is_some());
+    assert_eq!(sheet.background_color(1, 1), None);
 }
 
 #[test]
@@ -83,11 +68,14 @@ fn test_multiple_sheets() {
     assert_eq!(reader.sheet_count(), 2);
     assert_eq!(reader.sheet_names(), vec!["Sheet1", "Sheet2"]);
 
-    let sheet1 = reader.sheet_by_name("Sheet1").unwrap();
-    assert_eq!(sheet1.value(0, 0), CellValue::String("First".to_string()));
-
-    let sheet2 = reader.sheet_by_name("Sheet2").unwrap();
-    assert_eq!(sheet2.value(0, 0), CellValue::String("Second".to_string()));
+    assert_eq!(
+        reader.sheet_by_name("Sheet1").unwrap().value(0, 0),
+        CellValue::String("First".to_string())
+    );
+    assert_eq!(
+        reader.sheet_by_name("Sheet2").unwrap().value(0, 0),
+        CellValue::String("Second".to_string())
+    );
 }
 
 #[test]
@@ -97,7 +85,7 @@ fn test_bool_and_error_cells() {
         let mut sheet = writer.add_sheet("BoolErr");
         sheet.write_cell(0, 0, CellValue::Bool(true));
         sheet.write_cell(0, 1, CellValue::Bool(false));
-        sheet.write_cell(1, 0, CellValue::Error(0x07)); // #N/A
+        sheet.write_cell(1, 0, CellValue::Error(0x07));
     }
 
     let bytes = writer.to_bytes().expect("Failed to write xls");
@@ -171,10 +159,7 @@ fn test_japanese_strings() {
 
     assert_eq!(reader.sheet_names(), vec!["日本語テスト"]);
     let sheet = reader.sheet_by_index(0).unwrap();
-    assert_eq!(
-        sheet.value(0, 0),
-        CellValue::String("こんにちは".to_string())
-    );
+    assert_eq!(sheet.value(0, 0), CellValue::String("こんにちは".to_string()));
     assert_eq!(sheet.value(0, 1), CellValue::String("世界".to_string()));
 }
 
@@ -194,16 +179,28 @@ fn test_file_save_and_open() {
 
     let reader = XlsReader::open(&path).expect("Failed to open xls file");
     let sheet = reader.sheet_by_index(0).unwrap();
-    assert_eq!(
-        sheet.value(0, 0),
-        CellValue::String("saved to file".to_string())
-    );
+    assert_eq!(sheet.value(0, 0), CellValue::String("saved to file".to_string()));
     assert_eq!(sheet.value(0, 1), CellValue::Number(99.0));
+    assert_eq!(sheet.background_color(0, 1), Some(&XlsColor::BLUE));
 
-    let blue_bg = sheet.background_color(0, 1);
-    assert!(blue_bg.is_some());
-    assert_eq!(blue_bg.unwrap(), XlsColor::BLUE);
-
-    // Cleanup
     let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn test_value_ref_no_clone() {
+    let mut writer = XlsWriter::new();
+    {
+        let mut sheet = writer.add_sheet("Ref");
+        sheet.write_string(0, 0, "hello");
+        sheet.write_number(0, 1, 42.0);
+    }
+
+    let bytes = writer.to_bytes().unwrap();
+    let reader = XlsReader::from_bytes(&bytes).unwrap();
+    let sheet = reader.sheet_by_index(0).unwrap();
+
+    // value_ref returns a reference without cloning
+    assert_eq!(sheet.value_ref(0, 0).as_str(), Some("hello"));
+    assert_eq!(sheet.value_ref(0, 1).as_f64(), Some(42.0));
+    assert!(sheet.value_ref(99, 99).is_empty());
 }

@@ -487,6 +487,22 @@ fn parse_sheet(
     xf_records: &[XfRecord],
     palette: &[(u8, u8, u8); 56],
 ) -> Result<Sheet> {
+    // XF インデックス → 背景色のキャッシュ（同じ XF を何度も解決しない）
+    let mut xf_color_cache: Vec<Option<Option<XlsColor>>> = vec![None; xf_records.len()];
+    let resolve_bg_cached = |xf_index: u16, cache: &mut Vec<Option<Option<XlsColor>>>| -> Option<XlsColor> {
+        let idx = xf_index as usize;
+        if idx < cache.len() {
+            if let Some(ref cached) = cache[idx] {
+                return cached.clone();
+            }
+            let result = resolve_bg_color(xf_index, xf_records, palette);
+            cache[idx] = Some(result.clone());
+            result
+        } else {
+            resolve_bg_color(xf_index, xf_records, palette)
+        }
+    };
+
     let mut cells = Vec::new();
     let mut pos = offset;
 
@@ -534,7 +550,7 @@ fn parse_sheet(
                         CellValue::String(String::new())
                     };
 
-                    let bg = resolve_bg_color(xf_index, xf_records, palette);
+                    let bg = resolve_bg_cached(xf_index, &mut xf_color_cache);
                     cells.push(Cell {
                         row,
                         col,
@@ -559,7 +575,7 @@ fn parse_sheet(
                         rec_data[13],
                     ]);
 
-                    let bg = resolve_bg_color(xf_index, xf_records, palette);
+                    let bg = resolve_bg_cached(xf_index, &mut xf_color_cache);
                     cells.push(Cell {
                         row,
                         col,
@@ -581,7 +597,7 @@ fn parse_sheet(
                     ]);
                     let value = biff8::decode_rk(rk_val);
 
-                    let bg = resolve_bg_color(xf_index, xf_records, palette);
+                    let bg = resolve_bg_cached(xf_index, &mut xf_color_cache);
                     cells.push(Cell {
                         row,
                         col,
@@ -612,7 +628,7 @@ fn parse_sheet(
                         ]);
                         let value = biff8::decode_rk(rk_val);
 
-                        let bg = resolve_bg_color(xf_index, xf_records, palette);
+                        let bg = resolve_bg_cached(xf_index, &mut xf_color_cache);
                         cells.push(Cell {
                             row,
                             col,
@@ -638,7 +654,7 @@ fn parse_sheet(
                         let xf_index =
                             u16::from_le_bytes([rec_data[offset], rec_data[offset + 1]]);
 
-                        let bg = resolve_bg_color(xf_index, xf_records, palette);
+                        let bg = resolve_bg_cached(xf_index, &mut xf_color_cache);
                         if bg.is_some() {
                             cells.push(Cell {
                                 row,
@@ -657,7 +673,7 @@ fn parse_sheet(
                     let col = u16::from_le_bytes([rec_data[2], rec_data[3]]);
                     let xf_index = u16::from_le_bytes([rec_data[4], rec_data[5]]);
 
-                    let bg = resolve_bg_color(xf_index, xf_records, palette);
+                    let bg = resolve_bg_cached(xf_index, &mut xf_color_cache);
                     if bg.is_some() {
                         cells.push(Cell {
                             row,
@@ -682,7 +698,7 @@ fn parse_sheet(
                         CellValue::Bool(bval != 0)
                     };
 
-                    let bg = resolve_bg_color(xf_index, xf_records, palette);
+                    let bg = resolve_bg_cached(xf_index, &mut xf_color_cache);
                     cells.push(Cell {
                         row,
                         col,
@@ -704,7 +720,7 @@ fn parse_sheet(
                         String::new()
                     };
 
-                    let bg = resolve_bg_color(xf_index, xf_records, palette);
+                    let bg = resolve_bg_cached(xf_index, &mut xf_color_cache);
                     cells.push(Cell {
                         row,
                         col,
@@ -722,10 +738,7 @@ fn parse_sheet(
         pos += 4 + rec_len;
     }
 
-    Ok(Sheet {
-        name: name.to_string(),
-        cells,
-    })
+    Ok(Sheet::new(name.to_string(), cells))
 }
 
 /// XF インデックスから背景色を解決する
