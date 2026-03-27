@@ -1,0 +1,12 @@
+[package]
+name = "xls_reader"
+version = "0.1.0"
+edition = "2021"
+description = "A Rust library for reading and writing .xls (BIFF8) files with cell value and background color support"
+
+[dependencies]
+byteorder = "1"
+encoding_rs = "0.8"
+thiserror = "2"
+
+[dev-dependencies]
