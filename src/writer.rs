@@ -465,25 +465,28 @@ fn write_xf_record(buf: &mut Vec<u8>, xf: &XfDef, is_style: bool) {
     // text properties
     data[9] = 0x00;
 
-    // used attributes
+    // offset 10-11: border line styles (left/right/top/bottom)
     data[10] = 0x00;
     data[11] = 0x00;
 
-    // borders (4 bytes)
+    // offset 12-13: left/right border color + diagonal flags
     data[12] = 0x00;
     data[13] = 0x00;
-    data[14] = 0x00;
-    data[15] = 0x00;
 
-    // colors: bits 0-6 = fg, bits 7-13 = bg
+    // offset 14-17 (u32): top/bottom/diag border color + diag style + fill pattern
+    //   bits 26-31: fill pattern (0=none, 1=solid, ...)
+    let fill_bits: u32 = (xf.fill_pattern as u32) << 26;
+    data[14] = (fill_bits & 0xFF) as u8;
+    data[15] = ((fill_bits >> 8) & 0xFF) as u8;
+    data[16] = ((fill_bits >> 16) & 0xFF) as u8;
+    data[17] = ((fill_bits >> 24) & 0xFF) as u8;
+
+    // offset 18-19 (u16): pattern colors
+    //   bits 0-6: pattern foreground color index
+    //   bits 7-13: pattern background color index
     let color_word: u16 = (xf.fg_color_index & 0x7F) | ((xf.bg_color_index & 0x7F) << 7);
-    data[16] = (color_word & 0xFF) as u8;
-    data[17] = (color_word >> 8) as u8;
-
-    // pattern: bits 10-15 = fill pattern
-    let pattern_word: u16 = (xf.fill_pattern as u16) << 10;
-    data[18] = (pattern_word & 0xFF) as u8;
-    data[19] = (pattern_word >> 8) as u8;
+    data[18] = (color_word & 0xFF) as u8;
+    data[19] = (color_word >> 8) as u8;
 
     write_record(buf, record_type::XF, &data);
 }

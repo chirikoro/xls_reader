@@ -90,48 +90,33 @@ pub fn parse_xf_record(data: &[u8]) -> Option<XfRecord> {
     let font_index = u16::from_le_bytes([data[0], data[1]]);
     let format_index = u16::from_le_bytes([data[2], data[3]]);
 
-    // offset 18-19: pattern/color area 1
-    // offset 16-17: border style/color area
-    // 実際のBIFF8 XFレコード (20 bytes):
-    //   bytes 18-19 contain:
-    //     bits 0-6 of byte 18: pattern color (fg) index
-    //     bits 7-13 (spanning bytes 18-19): pattern background color index
-    //   bytes 16-17 contain:
-    //     bits 26-31 of the 4-byte area at offset 14: fill pattern
+    // BIFF8 XF record layout (MS-XLS spec, 20 bytes):
+    //   0-1:   ifnt (font index)
+    //   2-3:   ifmt (format index)
+    //   4-5:   type/protection/parent XF
+    //   6:     alignment (horiz/vert/wrap)
+    //   7:     rotation
+    //   8:     indent/shrink/merge/reading order
+    //   9:     attr flags (used attributes)
+    //   10-11: border line styles (left/right/top/bottom, 4 bits each)
+    //   12-13: left/right border color + diagonal flags
+    //   14-17: (u32) top/bottom/diag border color + diag style + fill pattern
+    //          bits 0-6:   icvTop (top border color)
+    //          bits 7-13:  icvBottom (bottom border color)
+    //          bits 14-20: icvDiag (diagonal color)
+    //          bits 21-24: dgDiag (diagonal style)
+    //          bit  25:    unused
+    //          bits 26-31: fls (fill pattern: 0=none, 1=solid, ...)
+    //   18-19: (u16) pattern colors
+    //          bits 0-6:   icvFore (pattern foreground color)
+    //          bits 7-13:  icvBack (pattern background color)
 
-    // BIFF8 XF record layout (exactly 20 bytes):
-    //   0-1:   font_index
-    //   2-3:   format_index
-    //   4-5:   type_prot_parent
-    //   6-7:   align
-    //   8-9:   rotation
-    //   10-11: text_props
-    //   12-15: border_style (4 bytes)
-    //   16-17: border_color_1
-    //   18-19: border_color_2 + pattern
-    //
-    // But actually the standard BIFF8 XF is 20 bytes with this layout:
-    //   0-1:   font index
-    //   2-3:   number format index
-    //   4-5:   XF type, cell protection, parent XF
-    //   6-7:   alignment, text wrap
-    //   8:     rotation
-    //   9:     text properties
-    //   10-11: used attributes
-    //   12-15: borders and line styles
-    //   16-17: palette fg/bg and pattern (first part)
-    //   18-19: palette fg/bg and pattern (second part)
-    //
-    // Correct layout for colors at offset 16-19:
-    //   Bytes 16-17 (u16): bits 0-6 = fg_color, bits 7-13 = bg_color
-    //   Bytes 18-19 (u16): bits 10-15 = fill pattern (6 bits)
+    let border_fill = u32::from_le_bytes([data[14], data[15], data[16], data[17]]);
+    let fill_pattern = ((border_fill >> 26) & 0x3F) as u8;
 
-    let color_word = u16::from_le_bytes([data[16], data[17]]);
-    let pattern_word = u16::from_le_bytes([data[18], data[19]]);
-
+    let color_word = u16::from_le_bytes([data[18], data[19]]);
     let fg_color_index = color_word & 0x7F;
     let bg_color_index = (color_word >> 7) & 0x7F;
-    let fill_pattern = ((pattern_word >> 10) & 0x3F) as u8;
 
     Some(XfRecord {
         font_index,
